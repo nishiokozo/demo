@@ -9,6 +9,12 @@ let g_sc = 1.0;	//:1:200line 2:400line
 let g_h = 200*g_sc;
 
 
+//ゆっくり描画のための処理
+let g_flgSleep = false;
+const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+
+
+	
 class GRA
 {
 	constructor( context, width, height )
@@ -207,13 +213,12 @@ class GRA
 		//	let a = this.img.data[ adr +3 ];
 			return this.rgb(r,g,b);
 		}
-
 		//-----------------------------------------------------------------------------
-		this.paint = function(  _x0, _y0, colsPat, colsRej  ) 
+		this.paint = async function(  _x0, _y0, colsPat, colsRej  ) 
 		//-----------------------------------------------------------------------------
 		{
-			let [x0,y0] = this.window_conv( _x0, _y0 );
 
+			let [x0,y0] = this.window_conv( _x0, _y0 );
 			let cntlines = 0;
 
 			{
@@ -267,6 +272,13 @@ class GRA
 						this.img.data[ adr +1 ] = (col>> 8)&0xff;
 						this.img.data[ adr +2 ] = (col>> 0)&0xff;
 						this.img.data[ adr +3 ] = 0xff;
+					}
+					
+					if ( cntlines & 0x4 )
+					{
+						g_flgSleep = true;
+						await sleep(1); // 1msecスリープ
+						g_flgSleep = false;
 					}
 					cntlines++;
 				}
@@ -520,7 +532,7 @@ g_context.imageSmoothingEnabled = g_context.msImageSmoothingEnabled = 0; // ス�
 let gra = new GRA( g_context, 640, g_h );
 let g2 = new GRA( g_context, 640, g_h );
 
-let g_tblVectX = 
+let g_tblVect = 
 [
 /*660*/ //ラムの髪
 /*670*/ 0,91,168,89,160,85,150,83,147,80,139,80,128,82,119,85,111,91,102,97,95,101,93,110,87,116,85,125,83,134,82,147,84,156,86,163,89,167,92,-1,-1,162,95,167,92,172,89,185,87,193,88,195,89,-1,-1,186,91,189,90,195,89,205,91,212,94,222,101,
@@ -711,10 +723,8 @@ let g_tblVectX =
 294, 12, 9,
 340, 11, 9,
 
-
 999,999,
 /*1410*/ //仕上げ
-];[
 /*1420*/ 0,104,81,106,82,111,79,-1,-1,102,87,107,86,113,81,-1,-1,87,171,85,166,83,159,80,154,78,154,77,157,-1,-1,85,166,83,166,80,168,79,170,78,175,-1,-1,83,159,80,158,77,161,76,165,76,170,78,175,-1,-1,262,268,268,262,270,261,273,260,-1,
 /*1430*/ -1,270,261,269,265,267,269,-1,-1,120,138,117,135,114,130,-1,-1,117,141,113,137,110,132,-1,-1,116,143,112,141,108,137,-1,-1,183,173,187,176,190,176,-1,-1,184,168,186,171,190,172,-1,-1,184,165,188,168,190,168,-1,-1,113,158,112,159,
 /*1440*/ -1,-1,115,161,114,162,-1,-1,173,186,174,187,-1,-1,176,186,177,187,999,999
@@ -722,7 +732,9 @@ let g_tblVectX =
 ];
 
 
-function test1()
+//-----------------------------------------------------------------------------
+function html_button()
+//-----------------------------------------------------------------------------
 {
 	if ( g_sc == 1.0 ) 
 	{
@@ -796,108 +808,109 @@ let g_tblTiling =
 };
 
 let g_tblPaint=[];
+let	g_stat = 0;
+let g_idxData = 0;
+let g_col = 0;
+let g_sx;
+let	g_sy;
 //-----------------------------------------------------------------------------
-function drawVector( gra, data )
+function drawVector( gra )
 //-----------------------------------------------------------------------------
 {
-	let	stat = 0;
-	let i = 0;
-	let c;
-	let sx,sy,ex,ey;
-
-	while( i < data.length )
+	let	ex;
+	let	ey;
+	switch( g_stat )
 	{
-		switch( stat )
+
+	//------------------------
+	case 0: // line color
+		g_col = g_tblCol8[ g_tblVect[g_idxData++] ]; 
+		g_stat = 1;
+		break;
+	case 1: // line g_sx g_sy
+		g_sx = g_tblVect[g_idxData++];	
+		g_sy = g_tblVect[g_idxData++];	
+		g_stat = 2
+		break;
+	case 2: // line ex ey 
+		ex = g_tblVect[g_idxData++];	
+		ey = g_tblVect[g_idxData++];	
+		if ( ex == 888 )	{g_stat = 0;     break;}	// end segment & color
+		if ( ex == -1 )		{g_stat = 1;     break;} 	// end segment
+		if ( ex == 999 )	{g_stat = 3;     break;}	// end segment & pset mode
+		if ( ex == 666 )								// end segment & ten eyes
 		{
-
-		//------------------------
-		case 0: // line color
-			c = g_tblCol8[ data[i++] ]; 
-			stat = 1;
-			continue;
-		case 1: // line sx sy
-			sx = data[i++];	
-			sy = data[i++];	
-			stat = 2
-			continue;
-		case 2: // line ex ey 
-			ex = data[i++];	
-			ey = data[i++];	
-			if ( ex == 888 )	{stat = 0;     continue;}	// end segment & color
-			if ( ex == -1 )		{stat = 1;     continue;} 	// end segment
-			if ( ex == 999 )	{stat = 3;     continue;}	// end segment & pset mode
-			if ( ex == 666 )								// end segment & ten eyes
-			{
-				gra.circle(217,213*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
-				gra.circle(244,231*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
-				continue;
-			}
-			gra.line( sx,sy*g_sc,ex,ey*g_sc, c );
-			sx=ex;
-			sy=ey;
-			continue;
-
-		//------------------------
-		case 3: // pset
-			c = g_tblCol8[ data[i++] ]; 
-			stat = 4;
-			continue;
-		case 4: // pset put
-			ex = data[i++];	
-			ey = data[i++];	
-			if ( ex == -1 )				{stat = 3;     continue;} 	// end segment & color
-			if ( ex == 999 )			{stat = 5;     continue;} 	// end segment & paint mode
-			gra.pset( ex,ey*g_sc, c );
-			continue;
-
-		//------------------------
-		case 5: // PAINT
-			ex = data[i++];	
-			ey = data[i++];	
-//	if ( ex == 999 )			{stat = 9;     continue;} 	// end segment & paint mode
-			if ( ex == 999 )			{stat = 6;     continue;} 	// end segment & paint mode
-			c = data[i++]; 
-			{
-				let col = [[884400]];
-				let rej = [0,0x00ff00,0xff0000,0xffffff];
-
-				if ( g_tblTiling[c] != undefined )
-				{
-					col = g_tblTiling[c][0];
-					rej = g_tblTiling[c][1];
-				}
-				if (1) gra.paint( ex,ey*g_sc, col,rej );else   {gra.circle(ex,ey*g_sc, 5,0xff0000,2,2);gra.paint( ex,ey*g_sc, col,[0xff0000] );}
-//				if ( c==1 )  {gra.circle(ex,ey*g_sc, 2,0xff0000,2,2*g_sc);gra.paint( ex,ey*g_sc, col,[0xff0000] );}
-g_tblPaint.push([ex,ey*g_sc,c]);
-			}
-			continue;
-
-		//------------------------
-		case 6:	// 仕上げ ---
-			c = data[i++];
-			stat = 7;
-			continue;	
-		case 7:	// 仕上げ ---
-			sx = data[i++];	
-			sy = data[i++];	
-			ex = data[i++];	
-			ey = data[i++];	
-			gra.line( sx,sy*g_sc,ex,ey*g_sc, c );
-			stat = 8;
-			continue;	
-		case 8:	// 仕上げ ---
-			ex = data[i++];	
-			ey = data[i++];	
-			if ( ex == -1 )				{stat = 7;     continue;}
-			if ( ex == 999 )			{stat = 9;     continue;}
-			gra.line( sx,sy*g_sc,ex,ey*g_sc, c );
-			sx=ex;
-			sy=ey;
-			continue;	
-
-		case 9:	// end
-			return;
+			gra.circle(217,213*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
+			gra.circle(244,231*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
+			break;
 		}
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+		g_sx=ex;
+		g_sy=ey;
+		break;
+
+	//------------------------
+	case 3: // pset
+		g_col = g_tblCol8[ g_tblVect[g_idxData++] ]; 
+		g_stat = 4;
+		break;
+	case 4: // pset put
+		ex = g_tblVect[g_idxData++];	
+		ey = g_tblVect[g_idxData++];	
+		if ( ex == -1 )				{g_stat = 3;     break;} 	// end segment & color
+		if ( ex == 999 )			{g_stat = 5;     break;} 	// end segment & paint mode
+		gra.pset( ex,ey*g_sc, g_col );
+		break;
+
+	//------------------------
+	case 5: // PAINT
+		if( g_flgSleep ) break;
+
+		ex = g_tblVect[g_idxData++];	
+		ey = g_tblVect[g_idxData++];	
+//	if ( ex == 999 )			{g_stat = 9;     break;} 	// end segment & paint mode
+		if ( ex == 999 )			{g_stat = 6;     break;} 	// end segment & paint mode
+		g_col = g_tblVect[g_idxData++]; 
+		{
+			let col = [[884400]];
+			let rej = [0,0x00ff00,0xff0000,0xffffff];
+
+			if ( g_tblTiling[g_col] != undefined )
+			{
+				col = g_tblTiling[g_col][0];
+				rej = g_tblTiling[g_col][1];
+			}
+			if (1) gra.paint( ex,ey*g_sc, col,rej );else   {gra.circle(ex,ey*g_sc, 5,0xff0000,2,2);gra.paint( ex,ey*g_sc, col,[0xff0000] );}
+//				if ( g_col==1 )  {gra.circle(ex,ey*g_sc, 2,0xff0000,2,2*g_sc);gra.paint( ex,ey*g_sc, col,[0xff0000] );}
+g_tblPaint.push([ex,ey*g_sc,g_col]);
+		}
+		break;
+
+	//------------------------
+	case 6:	// 仕上げ ---
+		g_col = g_tblVect[g_idxData++];
+		g_stat = 7;
+		break;	
+	case 7:	// 仕上げ ---
+		g_sx = g_tblVect[g_idxData++];	
+		g_sy = g_tblVect[g_idxData++];	
+		ex = g_tblVect[g_idxData++];	
+		ey = g_tblVect[g_idxData++];	
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+		g_stat = 8;
+		break;	
+	case 8:	// 仕上げ ---
+		ex = g_tblVect[g_idxData++];	
+		ey = g_tblVect[g_idxData++];	
+		if ( ex == -1 )				{g_stat = 7;     break;}
+		if ( ex == 999 )			{g_stat = 9;     break;}
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+		g_sx=ex;
+		g_sy=ey;
+		break;	
+
+//		case 9:	// end
+//			return;
 	}
 }
 
@@ -1079,17 +1092,6 @@ function print( tx, ty, str )
 	g_context.fillText( str, tx, ty );
 }
 
-//-----------------------------------------------------------------------------
-function onPaint()
-//-----------------------------------------------------------------------------
-{
-	draw_image( gra.img );
-	draw_image( g2.img );
-
-	// テキストは最後に描画
-//	print(1,12,"("+ g_mouse_x +"," + g_mouse_y+")" );
-//	print(1,32,"("+ g_mouse_x2 +"," + g_mouse_y2/g_sc+")" );
-}
 
 let g_mouse_x;
 let g_mouse_y;
@@ -1142,23 +1144,57 @@ window.onload = function()
 
 }
 //-----------------------------------------------------------------------------
+function onPaint()
+//-----------------------------------------------------------------------------
+{
+	draw_image( gra.img );
+	draw_image( g2.img );
+
+	// テキストは最後に描画
+//	print(1,12,"("+ g_mouse_x +"," + g_mouse_y+")" );
+//	print(1,32,"("+ g_mouse_x2 +"," + g_mouse_y2/g_sc+")" );
+}
+
+//-----------------------------------------------------------------------------
 function main()
 //-----------------------------------------------------------------------------
 {
 	gra.window(0,0,639,199, -39,10,529,379);			
 	gra.cls( 0x0000ff );			
 //	gra.pset( 100,100, 0xff0000 );			
-//	gra.circle(245,195,143,0x00ff00,2,1.3 );//画面いっぱいに円
+//	gra.circle(245,195,143,0x00ff00,1.3 );//画面いっぱいに円
 //	gra.box(-39,10,529,379, g_tblCol8[2]);	//画面いっぱいに箱
 //	gra.paint(245,195, [[0x880000]], [0xff0000,0x00ff00]);	//ペイント
-	drawVector( gra, g_tblVectX );
-//	gra.paint(370,170, g_tblTiling[7][0], [0,0xff0000,0x00ff00]);	//画面いっぱいに箱
+
 
 	{
 		g2.window(0,0,639,199, -39,10,529,379);			
 		g2.cls( 0x010101, 0 );			
 //		g2.draw_palet();
 	}
-	requestAnimationFrame( onPaint );
+		g_idxData = 0;
+		g_stat = 0;
 
+
+	update();
+	{
+//		while( g_idxData < g_tblVect.length && g_stat != 9 )
+		{
+//			drawVector( gra );
+		}
+	}
+//	gra.paint(370,170, g_tblTiling[7][0], [0,0xff0000,0x00ff00]);	//画面いっぱいに箱
+}
+
+function update()
+{
+	for ( let i = 0 ; i < 4 ; i ++ )
+	{
+		if ( g_idxData < g_tblVect.length && g_stat != 9 )
+		{
+			drawVector( gra );
+		}
+	}
+	onPaint();
+	requestAnimationFrame( update );
 }
