@@ -12,6 +12,8 @@ let g_h = 200*g_sc;
 //ゆっくり描画のための処理
 let g_flgSleep = false;
 const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+
+
 	
 class GRA
 {
@@ -1186,7 +1188,7 @@ function main()
 
 function update()
 {
-	for ( let i = 0 ; i < 10 ; i ++ )
+	for ( let i = 0 ; i < 4 ; i ++ )
 	{
 		if ( g_idxData < g_tblVect.length && g_stat != 9 )
 		{
