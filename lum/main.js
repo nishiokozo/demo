@@ -261,7 +261,7 @@ class GRA
 
 				// シードから左端を探す
 				let lx=sx;
-				while( lx > 0 )
+				while( lx >= 0 )
 				{
 					let c = this.point(lx,sy);
 					if ( colsRej.indexOf(c) != -1 ) break;
@@ -300,7 +300,7 @@ class GRA
 						this.stencil[ adr ] = 1;
 					}
 					
-					if ( cntlines & 0x1 )
+					if ( cntlines %3 == 1 )
 					{
 						g_flgSleep = true;
 						await sleep(1); // 1msecスリープ
@@ -841,7 +841,7 @@ main();
 
 function update()
 {
-	for ( let i = 0 ; i < 400 ; i ++ )
+	for ( let i = 0 ; i < 10 ; i ++ )
 	{
 		if ( g_idxVect < g_tblVect.length && g_stat != 9 )
 		{

@@ -442,9 +442,8 @@ let g_tblVect =
 /*1300 */ 160,12,480,185,12,475,205,12,484,193,12,534,169,12,540,169,12,533,167,12,537,171,12,520,280,6,570,215,12,549,188,12,520,191,12,529,191,12,547,208,12,550,223,12,548,237,12,568,178,12,563,176,12,555,178,12,522,196,12,490,280,9,540,
 /*1310 */ 260,9,520,310,10,470,300,10,575,275,10,583,182,10,535,298,10,503,298,10,507,298,10,532,281,12,550,250,11,575,285,11,360,255,12,359,245,12,374,262,5,374,274,5,362,262,12,360,252,12,357,250,12,349,245,12,354,249,12,356,251,12,349,
 /*1320 */ 261,12,354,257,12,356,255,12,355,259,12,354,261,12,377,276,5,390,265,15,377,276,15,340,260,17,50,50,5,50,180,5,50,300,5,600,350,5,600,50,5,400,380,18,360,300,18,300,100,18,240,215,18,288,223,18,524,77,5,522,76,5,999,999,999,
-];[
 /*1330 */ //仕上げ,
-/*1340 */ 0,403,334,405,338,414,344,-1,-1,383,308,390,305,398,304,-1,-1,426,289,435,290,-1,-1,400,158,398,169,-1,-1,420,142,418,155,418159,419,163,-1,-1,420,142,423,149,424,1563,423,161,-1,-1,427,183,439,180,-1,-1,578,271,570,279,-1,-1,528,
+/*1340 */ 0,403,334,405,338,414,344,-1,-1,383,308,390,305,398,304,-1,-1,426,289,435,290,-1,-1,400,158,398,169,-1,-1,420,142,418,155,418,159,419,163,-1,-1,420,142,423,149,424,156,423,161,-1,-1,427,183,439,180,-1,-1,578,271,570,279,-1,-1,528,
 /*1350 */ 198,533,194,-1,-1,532,198,535,196,-1,-1,534,261,537,264,-1,-1,530,262,531,264,534,267,888,888,7,524,256,521,256,-1,-1,521,213,518,213,777,777,
 
 ];
@@ -526,20 +525,6 @@ let	g_sy;
 function drawVector( gra )
 //-----------------------------------------------------------------------------
 {
-	let flgRot = false;
-	function rot_line( x0, y0, x1, y1, col )
-	{
-		if ( flgRot )
-		{
-			gra.line( y0,640-x0*g_sc,y1,640-x1*g_sc, g_col );
-		}
-		else
-		{
-			gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
-		}
-	}
-
-
 	let	ex;
 	let	ey;
 	switch( g_stat )
@@ -561,14 +546,15 @@ function drawVector( gra )
 		if ( ex == 888 )	{g_stat = 0;     break;}	// end segment & color
 		if ( ex == -1 )		{g_stat = 1;     break;} 	// end segment
 		if ( ex == 999 )	{g_stat = 3;     break;}	// end segment & pset mode
-		if ( ex == 666 )								// end segment & ten eyes
+		if ( ex == 777 )	{g_stat = 9;     break;}	// end 
+		if ( ex == 666 )								// circle
 		{
 			gra.circle(217,213*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
 			gra.circle(244,231*g_sc,7.8,g_tblCol8[0], 2.1*g_sc );	 
 			break;
 		}
-//		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
-		rot_line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+	//	console.log(g_idxData+")", g_sx,g_sy,ex,ey,g_col);
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
 		g_sx=ex;
 		g_sy=ey;
 		break;
@@ -584,7 +570,6 @@ function drawVector( gra )
 		if ( ex == -1 )				{g_stat = 3;     break;} 	// end segment & color
 		if ( ex == 999 )			{g_stat = 5;     break;} 	// end segment & paint mode
 		gra.pset( ex,ey*g_sc, g_col );//kozo
-//gra.circle( ex,ey*g_sc, 1, 0xff0000,4 );//kozo
 		break;
 
 	//------------------------
@@ -593,8 +578,14 @@ function drawVector( gra )
 
 		ex = g_tblVect[g_idxData++];	
 		ey = g_tblVect[g_idxData++];	
-		if ( ex == 999 )			{g_stat = 6;     break;} 	// end segment & paint mode
 		g_col = g_tblVect[g_idxData++]; 
+		if ( ex == 999 )			
+		{
+			g_stat = 0;  
+			//console.log("仕上げ");
+			break;
+		} 	// end segment & paint mode
+		
 		{
 			let col = [[884400]];
 			let rej = [0,0x00ff00,0xff0000,0xffffff];
@@ -609,6 +600,7 @@ function drawVector( gra )
 		break;
 
 	//------------------------
+/*
 	case 6:	// 仕上げ ---
 		g_col = g_tblVect[g_idxData++];
 		g_stat = 7;
@@ -618,7 +610,7 @@ function drawVector( gra )
 		g_sy = g_tblVect[g_idxData++];	
 		ex = g_tblVect[g_idxData++];	
 		ey = g_tblVect[g_idxData++];	
-		rot_line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
 		g_stat = 8;
 		break;	
 	case 8:	// 仕上げ ---
@@ -626,13 +618,11 @@ function drawVector( gra )
 		ey = g_tblVect[g_idxData++];	
 		if ( ex == -1 )				{g_stat = 7;     break;}
 		if ( ex == 999 )			{g_stat = 9;     break;}
-		rot_line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
+		gra.line( g_sx,g_sy*g_sc,ex,ey*g_sc, g_col );
 		g_sx=ex;
 		g_sy=ey;
 		break;	
-
-//		case 9:	// end
-//			return;
+*/
 	}
 }
 
@@ -696,7 +686,7 @@ function draw_image( img )
 		{
 		    g_context.save();
 		    g_context.rotate(-90 * Math.PI / 180);          	
-			g_context.drawImage( cv,sx,sy,sw,sh,dx-640,dy+100,dw,dh);	// ImageDataは引き延ばせないけど、Imageは引き延ばせる
+			g_context.drawImage( cv,sx,sy,sw,sh,dx-640,dy,dw,dh);	// ImageDataは引き延ばせないけど、Imageは引き延ばせる
 		    g_context.restore();
 		}
 		else

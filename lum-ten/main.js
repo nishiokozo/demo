@@ -2,6 +2,7 @@
 // 2020/12/20 WINDOW命令に対応
 // 2020/12/22 gra をクラスに変更
 // 2020/12/23 スキャンライン・シードペイントアルゴリズムに変更
+// 2020/12/26 ステンシルバッファ判定に変更
 
 'use strict';
 
@@ -18,6 +19,7 @@ class GRA
 	constructor( context, width, height )
 	{
 		this.img = context.createImageData( width, height );
+		this.stencil = new Array( width*height );
 
 		//-----------------------------------------------------------------------------
 		this.window = function( x0,y0,x1,y1, x2,y2,x3,y3 )
@@ -35,7 +37,7 @@ class GRA
 			this.sw = (this.x1-this.x0+1)/(this.x3-this.x2+1);
 			this.sh = (this.y1-this.y0+1)/(this.y3-this.y2+1);
 			
-			if ( g_sc == 2.0 ) this.sh*=0.99;
+//			if ( g_sc == 2.0 ) this.sh*=0.99;
 		}
 
 		this.window( 
@@ -71,12 +73,6 @@ class GRA
 		}
 
 
-		//-----------------------------------------------------------------------------
-		this.rgb = function( r,g,b )	// RGB 8:8:8 
-		//-----------------------------------------------------------------------------
-		{
-			return (r<<16)|(g<<8)|b;
-		}
 
 		//-----------------------------------------------------------------------------
 		this.cls = function( col, a =0xff )
@@ -91,6 +87,23 @@ class GRA
 				this.img.data[ adr +2 ] = (col>> 0)&0xff;
 				this.img.data[ adr +3 ] = a;
 			}
+		}
+		//-----------------------------------------------------------------------------
+		this.rgb = function( r,g,b )	// xRGB 8:8:8:8 
+		//-----------------------------------------------------------------------------
+		{
+			return (r<<16)|(g<<8)|b;
+		}
+		//-----------------------------------------------------------------------------
+		this.point = function( x, y )
+		//-----------------------------------------------------------------------------
+		{
+			let adr = (y*this.img.width+x)*4;
+			let r = this.img.data[ adr +0 ];
+			let g = this.img.data[ adr +1 ];
+			let b = this.img.data[ adr +2 ];
+		//	let a = this.img.data[ adr +3 ];
+			return this.rgb(r,g,b);
 		}
 		//-----------------------------------------------------------------------------
 		this.pset0 = function( _ox, _oy, col, a=0xff )
@@ -116,6 +129,23 @@ class GRA
 			let [px,py] = this.window_conv( _px, _py );
 			this.pset0( px, py, col );
 		}
+
+		//-----------------------------------------------------------------------------
+		this.stencil_point = function( x, y )
+		//-----------------------------------------------------------------------------
+		{
+			let adr = (y*this.img.width+x);
+			let r = this.stencil[ adr ];
+			return r;
+		}
+		//-----------------------------------------------------------------------------
+		this.stencil_pset = function( x, y, a )
+		//-----------------------------------------------------------------------------
+		{
+			let adr = (y*this.img.width+x);
+			this.stencil[ adr ] = a;
+		}
+
 		//-----------------------------------------------------------------------------
 		this.line = function( _x1, _y1, _x2, _y2, col ) 
 		//-----------------------------------------------------------------------------
@@ -185,6 +215,11 @@ class GRA
 		{
 			const scx=2;
 
+			let rad = function( deg )
+			//-----------------------------------------------------------------------------
+			{
+				return deg*Math.PI/180;
+			}
 			{
 				let st = rad(1);
 				let x0,y0;
@@ -201,20 +236,13 @@ class GRA
 		}
 
 		//-----------------------------------------------------------------------------
-		this.point = function( x, y )
-		//-----------------------------------------------------------------------------
-		{
-			let adr = (y*this.img.width+x)*4;
-			let r = this.img.data[ adr +0 ];
-			let g = this.img.data[ adr +1 ];
-			let b = this.img.data[ adr +2 ];
-		//	let a = this.img.data[ adr +3 ];
-			return this.rgb(r,g,b);
-		}
-		//-----------------------------------------------------------------------------
 		this.paint = async function(  _x0, _y0, colsPat, colsRej  ) 
 		//-----------------------------------------------------------------------------
 		{
+		//	呼び出しサンプル
+		//	gra.circle(100,100, 20,0xff0000);
+		//	gra.paint( 100,100, [[0xffff00]],[0xff0000] );
+
 
 			let [x0,y0] = this.window_conv( _x0, _y0 );
 			let cntlines = 0;
@@ -224,25 +252,28 @@ class GRA
 				if ( colsRej.indexOf(c) != -1 ) return cntlines;
 			}
 
-			const MAX = 1000;
+			this.stencil.fill(0);
+
 			let seed=[];
 			seed.push([x0,y0,0,0,0]); // x,y,dir,lx,rx
 			while( seed.length > 0 )
 			{
 				// 先頭のシードを取り出す
-				let sx=seed[0][0];
-				let sy=seed[0][1];
-				let pdir=seed[0][2];
-				let plx=seed[0][3];
-				let prx=seed[0][4];
+				let sx	= seed[0][0];
+				let sy	= seed[0][1];
+				let pdi	= seed[0][2];
+				let plx	= seed[0][3];
+				let prx	= seed[0][4];
 				seed.shift();
 
 				// シードから左端を探す
 				let lx=sx;
-				while( lx > 0 )
+				while( lx >= 0 )
 				{
 					let c = this.point(lx,sy);
 					if ( colsRej.indexOf(c) != -1 ) break;
+					let s = this.stencil_point(lx,sy);
+					if ( s != 0 ) break;
 					lx--;
 				}
 				lx++;
@@ -253,6 +284,8 @@ class GRA
 				{
 					let c = this.point(rx,sy);
 					if ( colsRej.indexOf(c) != -1 ) break;
+					let s = this.stencil_point(rx,sy);
+					if ( s != 0 ) break;
 					rx++;
 				}
 				rx--;
@@ -265,14 +298,16 @@ class GRA
 					{
 						let ix = Math.floor(  x % colsPat[0].length );
 						let col = colsPat[iy][ix];
-						let adr = (ay+x)*4;
-						this.img.data[ adr +0 ] = (col>>16)&0xff;
-						this.img.data[ adr +1 ] = (col>> 8)&0xff;
-						this.img.data[ adr +2 ] = (col>> 0)&0xff;
-						this.img.data[ adr +3 ] = 0xff;
+						let adr = (ay+x);
+						this.img.data[ adr*4 +0 ] = (col>>16)&0xff;
+						this.img.data[ adr*4 +1 ] = (col>> 8)&0xff;
+						this.img.data[ adr*4 +2 ] = (col>> 0)&0xff;
+						this.img.data[ adr*4 +3 ] = 0xff;
+					
+						this.stencil[ adr ] = 1;
 					}
 					
-					if ( cntlines & 0x4 )
+					if ( cntlines %3 == 1 )
 					{
 						g_flgSleep = true;
 						await sleep(1); // 1msecスリープ
@@ -281,7 +316,13 @@ class GRA
 					cntlines++;
 				}
 
-				for( let dir of [1, -1] )
+// kozo
+//console.log(">",seed.length);
+if ( seed.length > 9 ) 
+{
+	console.log("err",seed.length);
+	break;
+}				for( let dir of [-1,1] )
 				{// 一ライン上（下）のライン内でのペイント領域の右端をすべてシードに加える
 					let y=sy+dir;
 					if ( dir ==-1 && y < 0 ) continue;
@@ -290,8 +331,9 @@ class GRA
 					for ( let x = lx ; x <=rx ; x++ )
 					{
 						let c = this.point(x,y);
-						let s =0;						
-						if ( dir != pdir && x >= plx && x <= prx ) s=1; else s=0; // ひとつ前のペイント判定
+						let s = this.stencil_point(x,y);
+//						let s =0;						
+//						if ( dir != pdi && x >= plx && x <= prx ) s=1; else s=0; // ひとつ前のペイント判定
 						if ( flgBegin == false )
 						{
 							if ( s == 0 && colsRej.indexOf(c) == -1 )
@@ -305,6 +347,7 @@ class GRA
 							{}
 							else
 							{
+//	console.log(seed.length,":",[x-1,y,dir,lx,rx]);
 								seed.push([x-1,y,dir,lx,rx]);
 								flgBegin = false;
 							}
@@ -312,6 +355,7 @@ class GRA
 					}
 					if ( flgBegin == true )
 					{
+//	console.log(seed.length,":",[rx,y,dir,lx,rx]);
 								seed.push([rx,y,dir,lx,rx]);
 					}
 				}
@@ -325,8 +369,8 @@ class GRA
 		//-----------------------------------------------------------------------------
 		{
 		//	呼び出しサンプル
-		//	this.circle(100,100, 20,0xff0000);
-		//	this.paint( 100,100, [[0xffff00]],[0xff0000] );
+		//	gra.circle(100,100, 20,0xff0000);
+		//	gra.paint( 100,100, [[0xffff00]],[0xff0000] );
 
 			let [x0,y0] = this.window_conv( _x0, _y0 );
 
